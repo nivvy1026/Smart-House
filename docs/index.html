@@ -249,8 +249,15 @@
       </div>
     </div>
   </div>
+
   
-    <!-- ThingSpeak History -->
+  <!-- Door Activity Log -->
+  <div class="card">
+    <h2>Recent Door Activity</h2>
+    <div id="door-log">Loading…</div>
+  </div>
+
+  <!-- ThingSpeak History -->
   <div class="card">
     <h2>Temperature History</h2>
     <iframe
@@ -287,6 +294,10 @@
       room3: { set: "home/lights/room3/set", state: "home/lights/room3/state" },
     }
   };
+
+  // Door events channel (ThingSpeak) - read-only, public channel view
+  const DOOR_CHANNEL_ID = "YOUR_DOOR_CHANNEL_ID";
+  const DOOR_LOG_REFRESH_MS = 15000;
 
   const connDot = document.getElementById("conn-dot");
   const connText = document.getElementById("conn-text");
@@ -390,6 +401,46 @@
     client.publish(TOPICS.pinAttempt, pin);
     pinInput.value = "";
   });
+
+  // Door activity log (from ThingSpeak, polled independently of MQTT)
+  async function fetchDoorLog() {
+    const logEl = document.getElementById("door-log");
+    try {
+      const res = await fetch(
+        `https://api.thingspeak.com/channels/${DOOR_CHANNEL_ID}/feeds.json?results=10`
+      );
+      const data = await res.json();
+      const feeds = data.feeds || [];
+
+      if (feeds.length === 0) {
+        logEl.textContent = "No door activity yet.";
+        return;
+      }
+
+      logEl.innerHTML = feeds
+        .slice()
+        .reverse()
+        .map(feed => {
+          const success = feed.field1 === "1";
+          const time = new Date(feed.created_at).toLocaleString([], {
+            month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+          });
+          return `
+            <div class="log-entry">
+              <span class="log-result ${success ? "success" : "fail"}">
+                ${success ? "Unlocked" : "Wrong PIN"}
+              </span>
+              <span class="log-time">${time}</span>
+            </div>`;
+        })
+        .join("");
+    } catch (e) {
+      logEl.textContent = "Couldn't load door activity.";
+    }
+  }
+
+  fetchDoorLog();
+  setInterval(fetchDoorLog, DOOR_LOG_REFRESH_MS);
 
   // Room toggles
   document.querySelectorAll(".toggle").forEach(btn => {
