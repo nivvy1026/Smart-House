@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart House</title>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --text: #1c1e21;
+    --muted: #6b7280;
+    --border: #e2e4e8;
+    --accent: #2563eb;
+    --accent-off: #d1d5db;
+    --green: #16a34a;
+    --red: #dc2626;
+    --orange: #ea580c;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px;
+  }
+
+  .wrap {
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-size: 22px;
+    margin: 0 0 4px;
+  }
+
+  .status-line {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--red);
+    display: inline-block;
+  }
+  .dot.connected { background: var(--green); }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+
+  .card h2 {
+    font-size: 14px;
+    margin: 0 0 12px;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  /* Door card */
+  .door-status {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .door-status.locked { color: var(--red); }
+  .door-status.unlocked { color: var(--green); }
+
+  #pin-input {
+    width: 100%;
+    font-size: 22px;
+    letter-spacing: 8px;
+    text-align: center;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 10px;
+  }
+
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 500;
+  }
+
+  .unlock-btn {
+    width: 100%;
+    padding: 12px;
+    background: var(--accent);
+    color: white;
+  }
+  .unlock-btn:active { opacity: 0.85; }
+
+  /* Room rows */
+  .room-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .room-row:last-child { border-bottom: none; }
+
+  .room-name { font-size: 15px; }
+
+  .toggle {
+    width: 46px;
+    height: 26px;
+    border-radius: 13px;
+    background: var(--accent-off);
+    position: relative;
+    padding: 0;
+  }
+  .toggle .knob {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: white;
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    transition: left 0.15s ease;
+  }
+  .toggle.on { background: var(--green); }
+  .toggle.on .knob { left: 23px; }
+
+  /* DHT card */
+  .dht-values {
+    display: flex;
+    gap: 20px;
+  }
+  .dht-values div { flex: 1; text-align: center; }
+  .dht-values .num { font-size: 26px; font-weight: 700; }
+  .dht-values .label { font-size: 12px; color: var(--muted); }
+
+  /* Door log */
+  #door-log {
+    font-size: 13px;
+  }
+  .log-entry {
+    display: flex;
+    justify-content: space-between;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .log-entry:last-child { border-bottom: none; }
+  .log-result { font-weight: 600; }
+  .log-result.success { color: var(--green); }
+  .log-result.fail { color: var(--red); }
+  .log-time { color: var(--muted); }
+
+
+
+  /* Toasts */
+  #toast-container {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 100;
+    width: calc(100% - 40px);
+    max-width: 440px;
+  }
+  .toast {
+    padding: 12px 14px;
+    border-radius: 8px;
+    color: white;
+    font-size: 14px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    animation: slideIn 0.2s ease;
+  }
+  .toast.wrong_pin { background: var(--red); }
+  .toast.high_temp { background: var(--orange); }
+  .toast.default { background: #374151; }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<div id="toast-container"></div>
+
+<div class="wrap">
+  <h1>Smart House</h1>
+  <div class="status-line">
+    <span id="conn-dot" class="dot"></span>
+    <span id="conn-text">Connecting…</span>
+  </div>
+
+  <!-- Door -->
+  <div class="card">
+    <h2>Front Door</h2>
+    <div id="door-status" class="door-status locked">Locked</div>
+    <input id="pin-input" type="password" inputmode="numeric" maxlength="4" placeholder="••••">
+    <button class="unlock-btn" id="unlock-btn">Unlock</button>
+  </div>
+
+  <!-- Rooms -->
+  <div class="card">
+    <h2>Lights</h2>
+    <div class="room-row">
+      <span class="room-name">Living Room</span>
+      <button class="toggle" data-room="room1"><span class="knob"></span></button>
+    </div>
+    <div class="room-row">
+      <span class="room-name">Wash Room</span>
+      <button class="toggle" data-room="room2"><span class="knob"></span></button>
+    </div>
+    <div class="room-row">
+      <span class="room-name">Bed Room</span>
+      <button class="toggle" data-room="room3"><span class="knob"></span></button>
+    </div>
+  </div>
+
+  <!-- DHT -->
+  <div class="card">
+    <h2>Room Climate</h2>
+    <div class="dht-values">
+      <div>
+        <div class="num" id="temp-val">--</div>
+        <div class="label">°C</div>
+      </div>
+      <div>
+        <div class="num" id="hum-val">--</div>
+        <div class="label">% humidity</div>
+      </div>
+    </div>
+  </div>
+  
+    <!-- ThingSpeak History -->
+  <div class="card">
+    <h2>Temperature History</h2>
+    <iframe
+      style="width:100%; height:200px; border:none;"
+      src="https://thingspeak.com/channels/3516652/charts/1?bgcolor=%23ffffff&color=%232563eb&dynamic=true&results=60&type=line&title=Temperature"
+    ></iframe>
+  </div>
+
+  <div class="card">
+    <h2>Humidity History</h2>
+    <iframe
+      style="width:100%; height:200px; border:none;"
+      src="https://thingspeak.com/channels/3516652/charts/2?bgcolor=%23ffffff&color=%2316a34a&dynamic=true&results=60&type=line&title=Humidity"
+    ></iframe>
+  </div>
+
+</div>
+
+<script>
+  // ---------- Config: fill in your own values ----------
+  const MQTT_URL = "wss://ca185ef737c641438f748354507d8a85.s1.eu.hivemq.cloud:8884/mqtt";
+  const MQTT_USER = "WebApp";
+  const MQTT_PASS = "EmbeddedSystems2026!";
+
+  // ---------- Topics ----------
+  const TOPICS = {
+    doorStatus: "home/door/status",
+    pinAttempt: "home/door/pin_attempt",
+    alerts: "home/alerts",
+    dht: "home/room/dht",
+    rooms: {
+      room1: { set: "home/lights/room1/set", state: "home/lights/room1/state" },
+      room2: { set: "home/lights/room2/set", state: "home/lights/room2/state" },
+      room3: { set: "home/lights/room3/set", state: "home/lights/room3/state" },
+    }
+  };
+
+  const connDot = document.getElementById("conn-dot");
+  const connText = document.getElementById("conn-text");
+  const doorStatusEl = document.getElementById("door-status");
+  const pinInput = document.getElementById("pin-input");
+  const unlockBtn = document.getElementById("unlock-btn");
+  const tempVal = document.getElementById("temp-val");
+  const humVal = document.getElementById("hum-val");
+  const toastContainer = document.getElementById("toast-container");
+
+  const client = mqtt.connect(MQTT_URL, {
+    username: MQTT_USER,
+    password: MQTT_PASS,
+    clientId: "webapp-" + Math.random().toString(16).slice(2, 10),
+  });
+
+  client.on("connect", () => {
+    connDot.classList.add("connected");
+    connText.textContent = "Connected";
+
+    client.subscribe(TOPICS.doorStatus);
+    client.subscribe(TOPICS.alerts);
+    client.subscribe(TOPICS.dht);
+    Object.values(TOPICS.rooms).forEach(r => client.subscribe(r.state));
+  });
+
+  client.on("reconnect", () => {
+    connDot.classList.remove("connected");
+    connText.textContent = "Reconnecting…";
+  });
+
+  client.on("close", () => {
+    connDot.classList.remove("connected");
+    connText.textContent = "Disconnected";
+  });
+
+  client.on("message", (topic, payloadBuf) => {
+    const payload = payloadBuf.toString();
+
+    if (topic === TOPICS.doorStatus) {
+      setDoorStatus(payload);
+    } else if (topic === TOPICS.alerts) {
+      handleAlert(payload);
+    } else if (topic === TOPICS.dht) {
+      handleDHT(payload);
+    } else {
+      for (const [room, t] of Object.entries(TOPICS.rooms)) {
+        if (topic === t.state) setToggleState(room, payload === "on");
+      }
+    }
+  });
+
+  function setDoorStatus(status) {
+    const unlocked = status === "unlocked";
+    doorStatusEl.textContent = unlocked ? "Unlocked" : "Locked";
+    doorStatusEl.className = "door-status " + (unlocked ? "unlocked" : "locked");
+  }
+
+  function handleAlert(payloadStr) {
+    let data;
+    try {
+      data = JSON.parse(payloadStr);
+    } catch (e) {
+      return;
+    }
+    showToast(data.type, data.message);
+  }
+
+  function showToast(type, message) {
+    const el = document.createElement("div");
+    el.className = "toast " + (type === "wrong_pin" || type === "high_temp" ? type : "default");
+    el.textContent = message || type;
+    toastContainer.appendChild(el);
+    setTimeout(() => el.remove(), 5000);
+  }
+
+  function handleDHT(payloadStr) {
+    let data;
+    try {
+      data = JSON.parse(payloadStr);
+    } catch (e) {
+      return;
+    }
+    if (typeof data.temp === "number") tempVal.textContent = data.temp.toFixed(1);
+    if (typeof data.hum === "number") humVal.textContent = data.hum.toFixed(1);
+  }
+
+  function setToggleState(room, isOn) {
+    const btn = document.querySelector(`.toggle[data-room="${room}"]`);
+    if (!btn) return;
+    btn.classList.toggle("on", isOn);
+  }
+
+  // Unlock button
+  unlockBtn.addEventListener("click", () => {
+    const pin = pinInput.value.trim();
+    if (pin.length !== 4) {
+      showToast("default", "Enter a 4-digit PIN");
+      return;
+    }
+    client.publish(TOPICS.pinAttempt, pin);
+    pinInput.value = "";
+  });
+
+  // Room toggles
+  document.querySelectorAll(".toggle").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const room = btn.dataset.room;
+      const willBeOn = !btn.classList.contains("on");
+      client.publish(TOPICS.rooms[room].set, willBeOn ? "on" : "off");
+      // Optimistic UI update; corrected automatically if the device disagrees
+      setToggleState(room, willBeOn);
+    });
+  });
+</script>
+
+</body>
+</html>
