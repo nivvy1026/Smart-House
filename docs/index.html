@@ -150,6 +150,24 @@
   .dht-values .num { font-size: 26px; font-weight: 700; }
   .dht-values .label { font-size: 12px; color: var(--muted); }
 
+  /* Door log */
+  #door-log {
+    font-size: 13px;
+  }
+  .log-entry {
+    display: flex;
+    justify-content: space-between;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .log-entry:last-child { border-bottom: none; }
+  .log-result { font-weight: 600; }
+  .log-result.success { color: var(--green); }
+  .log-result.fail { color: var(--red); }
+  .log-time { color: var(--muted); }
+
+
+
   /* Toasts */
   #toast-container {
     position: fixed;
