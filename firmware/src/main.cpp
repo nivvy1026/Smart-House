@@ -53,7 +53,9 @@ unsigned long lastDHTRead = 0;
 float lastTemp = NAN;
 float lastHum = NAN;
 
+bool thingSpeakPostedBefore = false;
 unsigned long lastThingSpeakPost = 0;
+bool doorEventPostedBefore = false;
 unsigned long lastDoorEventPost = 0;
 
 bool led2State = false, led3State = false, led4State = false;
@@ -280,7 +282,7 @@ void setRoomLED(int pin, String msg, const char* stateTopic, bool &state) {
 void publishToThingSpeak() {
   if (millis() - lastThingSpeakPost < THINGSPEAK_INTERVAL_MS) return;
   if (isnan(lastTemp) || isnan(lastHum)) return;
-
+  thingSpeakPostedBefore = true;
   lastThingSpeakPost = millis();
 
   HTTPClient http;
@@ -301,10 +303,11 @@ void publishToThingSpeak() {
 }
 
 void logDoorEventToThingSpeak(bool success) {
-  if (millis() - lastDoorEventPost < THINGSPEAK_DOOR_MIN_INTERVAL_MS) {
+  if (doorEventPostedBefore && millis() - lastDoorEventPost < THINGSPEAK_DOOR_MIN_INTERVAL_MS) {
     Serial.println("Door event logging skipped (rate limit window)");
     return;
   }
+  doorEventPostedBefore = true;
   lastDoorEventPost = millis();
 
   HTTPClient http;
