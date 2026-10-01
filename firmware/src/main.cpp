@@ -22,7 +22,7 @@
 #define SERVO_LOCKED_ANGLE    0
 #define SERVO_UNLOCKED_ANGLE  90
 
-#define DHT_INTERVAL_MS 1000
+#define DHT_INTERVAL_MS 5000
 
 // MQTT Topics
 const char* TOPIC_PIN_ATTEMPT = "home/door/pin_attempt";
@@ -246,10 +246,16 @@ void readAndPublishDHT() {
   if (millis() - lastDHTRead < DHT_INTERVAL_MS) return;
   lastDHTRead = millis();
 
-  float h = dht.readHumidity();
-  float t = dht.readTemperature();
-  lastTemp = t;
-  lastHum = h;
+   float h = dht.readHumidity();
+   float t = dht.readTemperature();
+
+   if (isnan(h) || isnan(t)) {
+     Serial.println("DHT read failed");
+     return;
+   }
+
+   lastTemp = t;
+   lastHum = h;
 
   if (isnan(h) || isnan(t)) {
     Serial.println("DHT read failed");
@@ -303,6 +309,9 @@ void publishToThingSpeak() {
 }
 
 void logDoorEventToThingSpeak(bool success) {
+  Serial.print("DEBUG millis()="); Serial.print(millis());
+  Serial.print(" lastDoorEventPost="); Serial.println(lastDoorEventPost);
+
   if (doorEventPostedBefore && millis() - lastDoorEventPost < THINGSPEAK_DOOR_MIN_INTERVAL_MS) {
     Serial.println("Door event logging skipped (rate limit window)");
     return;
