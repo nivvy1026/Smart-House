@@ -1,4 +1,4 @@
-const CACHE_NAME = "smarthouse-shell-v1";
+const CACHE_NAME = "smarthouse-shell-v2";
 
 const APP_SHELL = [
   "./index.html",
