@@ -72,6 +72,7 @@ void updateDoorLight();
 void readAndPublishDHT();
 void setRoomLED(int pin, String msg, const char* stateTopic, bool &state);
 void publishToThingSpeak();
+void logDoorEventToThingSpeak(bool success);
 
 void setup() {
   Serial.begin(115200);

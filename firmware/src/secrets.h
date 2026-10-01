@@ -11,6 +11,7 @@ const char* MQTT_PASS = "EmbeddedSystems2026";
 const char* MQTT_CLIENT_ID = "esp32-smarthouse-01";
 
 const char* THINGSPEAK_API_KEY = "DZJXS8I64KHO1LJF";
+const char* THINGSPEAK_DOOR_API_KEY = "VN2Q80XQVLMIIS08";
 
 const char* DOOR_PIN        = "1234";
 #define TEMP_THRESHOLD_C    35.0
@@ -18,5 +19,6 @@ const char* DOOR_PIN        = "1234";
 #define UNLOCK_HOLD_MS      5000
 #define DOORLIGHT_HOLD_MS   10000
 #define THINGSPEAK_INTERVAL_MS 17000
+#define THINGSPEAK_DOOR_MIN_INTERVAL_MS 17000
 
 #endif
