@@ -18,6 +18,7 @@
 #define LED2_PIN    33   // LED2 > Room 1 (web app controlled)
 #define LED3_PIN    32   // LED3 > Room 2 (web app controlled)
 #define LED4_PIN    14   // LED4 > Room 3 (web app controlled)
+#define LED5_PIN    23   // LED5 > Room 4 (web app controlled)
 
 #define SERVO_LOCKED_ANGLE    0
 #define SERVO_UNLOCKED_ANGLE  90
@@ -35,12 +36,14 @@ const char* TOPIC_R2_SET      = "home/lights/room2/set";
 const char* TOPIC_R2_STATE    = "home/lights/room2/state";
 const char* TOPIC_R3_SET      = "home/lights/room3/set";
 const char* TOPIC_R3_STATE    = "home/lights/room3/state";
+const char* TOPIC_R4_SET      = "home/lights/room4/set";
+const char* TOPIC_R4_STATE    = "home/lights/room4/state";
 
 // Globals
 WiFiClientSecure espClient;
 PubSubClient mqttClient(espClient);
 Servo doorServo;
-DHT dht(DHT_PIN, DHT22);
+DHT dht(DHT_PIN, DHT11);
 
 bool doorUnlocked = false;
 unsigned long unlockedAt = 0;
@@ -58,7 +61,7 @@ unsigned long lastThingSpeakPost = 0;
 bool doorEventPostedBefore = false;
 unsigned long lastDoorEventPost = 0;
 
-bool led2State = false, led3State = false, led4State = false;
+bool led2State = false, led3State = false, led4State = false, led5State = false;
 
 // Declarations
 void connectWiFi();
@@ -86,6 +89,7 @@ void setup() {
   pinMode(LED2_PIN, OUTPUT);
   pinMode(LED3_PIN, OUTPUT);
   pinMode(LED4_PIN, OUTPUT);
+  pinMode(LED5_PIN, OUTPUT);
 
   doorServo.setPeriodHertz(50);
   doorServo.attach(SERVO_PIN, 500, 2400);
@@ -135,11 +139,13 @@ void connectMQTT() {
       mqttClient.subscribe(TOPIC_R1_SET);
       mqttClient.subscribe(TOPIC_R2_SET);
       mqttClient.subscribe(TOPIC_R3_SET);
+      mqttClient.subscribe(TOPIC_R4_SET);
 
       mqttClient.publish(TOPIC_DOOR_STATUS, doorUnlocked ? "unlocked" : "locked", true);
       mqttClient.publish(TOPIC_R1_STATE, led2State ? "on" : "off", true);
       mqttClient.publish(TOPIC_R2_STATE, led3State ? "on" : "off", true);
       mqttClient.publish(TOPIC_R3_STATE, led4State ? "on" : "off", true);
+      mqttClient.publish(TOPIC_R4_STATE, led5State ? "on" : "off", true);
     } else {
       Serial.print("failed, rc=");
       Serial.print(mqttClient.state());
@@ -164,6 +170,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     setRoomLED(LED3_PIN, msg, TOPIC_R2_STATE, led3State);
   } else if (t == TOPIC_R3_SET) {
     setRoomLED(LED4_PIN, msg, TOPIC_R3_STATE, led4State);
+  } else if (t == TOPIC_R4_SET) {
+    setRoomLED(LED5_PIN, msg, TOPIC_R4_STATE, led5State);
   }
 }
 
